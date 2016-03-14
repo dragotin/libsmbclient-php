@@ -2046,3 +2046,44 @@ PHP_FUNCTION(smbclient_fstatvfs)
 	add_assoc_long(return_value, "flag",    st.f_flag);
 	add_assoc_long(return_value, "namemax", st.f_namemax);
 }
+
+
+static int notify_callback( const struct smbc_notify_callback_action *actions, size_t num_actions, void *private_data)
+{
+    // what do we do here?
+}
+
+PHP_FUNCTION(smbclient_get_notifications)
+{
+	zval *zstate;
+	zval *zfile;
+	SMBCFILE *file;
+        smbc_notify_fn cb_notify;
+
+	php_smbclient_state *state;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rr", &zstate, &zfile) == FAILURE) {
+	    return;
+	}
+	STATE_FROM_ZSTATE;
+	FILE_FROM_ZFILE;
+
+        if ((cb_notify = smbc_getFunctionNotify(state->ctx)) == NULL) {
+            RETURN_FALSE;
+
+	}
+
+	int filter = SMBC_NOTIFY_CHANGE_FILE_NAME | SMBC_NOTIFY_CHANGE_FILE_NAME | SMBC_NOTIFY_CHANGE_LAST_WRITE;
+
+        if( cb_notify( state->ctx, file, 1==1, filter, 2000, notify_callback, NULL) != 0 ) {
+            switch (state->err = errno) {
+                /* FIXME: Check if we handle the correct errnos */
+                case EBADF: php_error(E_WARNING, "Couldn't fstatvfs: bad file descriptor"); break;
+		case EACCES: php_error(E_WARNING, "Couldn't fstatvfs: permission denied"); break;
+		case EINVAL: php_error(E_WARNING, "Couldn't fstatvfs: library not initalized or otherwise invalid"); break;
+		case ENOMEM: php_error(E_WARNING, "Couldn't fstatvfs: out of memory"); break;
+		default: php_error(E_WARNING, "Couldn't fstatvfs: unknown error (%d)", errno); break;
+            }
+	    RETURN_FALSE;
+        }
+}
